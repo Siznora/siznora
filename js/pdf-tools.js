@@ -26,9 +26,9 @@ async function compressPDF() {
 
   setStatus("Loading PDF compressor...");
 
-  /* =====================================================
+  /* ================================
      LOAD PDF.JS
-  ===================================================== */
+  ================================= */
 
   const pdfjs = await import(
     "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.5.136/build/pdf.min.mjs"
@@ -38,27 +38,26 @@ async function compressPDF() {
     "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.5.136/build/pdf.worker.min.mjs";
 
 
-  /* =====================================================
-     LOAD PDF
-  ===================================================== */
-
-  setStatus("Reading PDF...");
+  /* ================================
+     READ PDF
+  ================================= */
 
   const pdf = await pdfjs.getDocument({
-    data: new Uint8Array(await original.arrayBuffer())
+    data: new Uint8Array(
+      await original.arrayBuffer()
+    )
   }).promise;
 
   const pageCount = pdf.numPages;
 
 
-  /* =====================================================
-     SLIDER
+  /* ================================
+     GET SLIDER VALUE
      
-     Siznora slider:
-     10 = light compression
-     50 = medium compression
-     90 = strong compression
-  ===================================================== */
+     10 = light
+     50 = medium
+     90 = strong
+  ================================= */
 
   const slider =
     document.getElementById("compressionTarget");
@@ -67,205 +66,358 @@ async function compressPDF() {
     Number(slider?.value || 50);
 
 
-  /* =====================================================
-     CONVERT COMPRESSION % TO JPEG QUALITY
-     
-     Higher percentage = lower JPEG quality
-  ===================================================== */
+  /* ================================
+     TARGET SIZE
+  ================================= */
 
-  const quality =
+  const originalSize = original.size;
+
+  const targetSize =
+    originalSize *
+    (1 - compressionPercent / 100);
+
+
+  /* ================================
+     COMPRESSION LEVELS
+     
+     We try several qualities/resolutions
+     and select the result closest to
+     the requested target.
+  ================================= */
+
+  const levels = [
+
+    {
+      quality: 0.92,
+      scale: 1.55
+    },
+
+    {
+      quality: 0.85,
+      scale: 1.45
+    },
+
+    {
+      quality: 0.78,
+      scale: 1.35
+    },
+
+    {
+      quality: 0.70,
+      scale: 1.25
+    },
+
+    {
+      quality: 0.62,
+      scale: 1.15
+    },
+
+    {
+      quality: 0.55,
+      scale: 1.05
+    },
+
+    {
+      quality: 0.48,
+      scale: 0.95
+    },
+
+    {
+      quality: 0.40,
+      scale: 0.88
+    },
+
+    {
+      quality: 0.32,
+      scale: 0.80
+    },
+
+    {
+      quality: 0.24,
+      scale: 0.72
+    },
+
+    {
+      quality: 0.16,
+      scale: 0.65
+    }
+
+  ];
+
+
+  /* ================================
+     CHOOSE LEVELS ACCORDING TO SLIDER
+  ================================= */
+
+  let startIndex =
+    Math.floor(
+      (compressionPercent / 100) *
+      levels.length
+    );
+
+  startIndex =
     Math.max(
-      0.10,
+      0,
       Math.min(
-        0.95,
-        1 - (compressionPercent / 100) * 0.85
+        levels.length - 1,
+        startIndex
       )
     );
 
 
-  /* =====================================================
-     RESOLUTION SCALE
-     
-     Higher compression = lower resolution
-  ===================================================== */
-
-  const scale =
-    Math.max(
-      0.75,
-      1.6 - (compressionPercent / 100) * 0.75
-    );
+  const orderedLevels = [
+    ...levels.slice(startIndex),
+    ...levels.slice(0, startIndex)
+  ];
 
 
-  /* =====================================================
-     CREATE NEW PDF
-  ===================================================== */
+  /* ================================
+     CREATE CANDIDATE PDF
+  ================================= */
 
-  const { PDFDocument } = await lib();
+  async function createCompressedPDF(level) {
 
-  const out =
-    await PDFDocument.create();
+    const {
+      quality,
+      scale
+    } = level;
 
+    const { PDFDocument } =
+      await lib();
 
-  /* =====================================================
-     PROCESS EACH PAGE
-  ===================================================== */
-
-  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
-
-    setStatus(
-      `Compressing page ${pageNumber} of ${pageCount}...`
-    );
-
-    const page =
-      await pdf.getPage(pageNumber);
-
-    const viewport =
-      page.getViewport({
-        scale: scale
-      });
+    const out =
+      await PDFDocument.create();
 
 
-    /* ===================================================
-       CANVAS
-    =================================================== */
+    for (
+      let pageNumber = 1;
+      pageNumber <= pageCount;
+      pageNumber++
+    ) {
 
-    const canvas =
-      document.createElement("canvas");
-
-    const context =
-      canvas.getContext("2d", {
-        alpha: false
-      });
-
-    canvas.width =
-      Math.ceil(viewport.width);
-
-    canvas.height =
-      Math.ceil(viewport.height);
-
-
-    /* ===================================================
-       RENDER PDF PAGE
-    =================================================== */
-
-    await page.render({
-      canvasContext: context,
-      viewport: viewport
-    }).promise;
-
-
-    /* ===================================================
-       JPEG COMPRESSION
-    =================================================== */
-
-    const jpegBlob =
-      await new Promise((resolve, reject) => {
-
-        canvas.toBlob(
-          blob => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(
-                new Error(
-                  "Failed to compress PDF page."
-                )
-              );
-            }
-          },
-          "image/jpeg",
-          quality
-        );
-
-      });
-
-
-    /* ===================================================
-       EMBED JPEG INTO PDF
-    =================================================== */
-
-    const jpegBytes =
-      new Uint8Array(
-        await jpegBlob.arrayBuffer()
+      setStatus(
+        `Compressing page ${pageNumber} of ${pageCount}...`
       );
 
-    const image =
-      await out.embedJpg(jpegBytes);
+      const page =
+        await pdf.getPage(pageNumber);
+
+      const viewport =
+        page.getViewport({
+          scale
+        });
 
 
-    /* ===================================================
-       PRESERVE PAGE PROPORTION
-    =================================================== */
+      /* ==============================
+         CANVAS
+      ============================== */
 
-    const width =
-      image.width;
+      const canvas =
+        document.createElement("canvas");
 
-    const height =
-      image.height;
+      const context =
+        canvas.getContext(
+          "2d",
+          {
+            alpha: false
+          }
+        );
 
+      canvas.width =
+        Math.max(
+          1,
+          Math.ceil(viewport.width)
+        );
 
-    const newPage =
-      out.addPage([
-        width,
-        height
-      ]);
-
-
-    /* ===================================================
-       DRAW COMPRESSED PAGE
-    =================================================== */
-
-    newPage.drawImage(
-      image,
-      {
-        x: 0,
-        y: 0,
-        width: width,
-        height: height
-      }
-    );
+      canvas.height =
+        Math.max(
+          1,
+          Math.ceil(viewport.height)
+        );
 
 
-    /* ===================================================
-       CLEAN CANVAS
-    =================================================== */
+      /* ==============================
+         RENDER PAGE
+      ============================== */
 
-    canvas.width = 1;
-    canvas.height = 1;
-  }
-
-
-  /* =====================================================
-     SAVE PDF
-  ===================================================== */
-
-  setStatus("Creating compressed PDF...");
-
-  const bytes =
-    await out.save({
-      useObjectStreams: true,
-      addDefaultPage: false
-    });
+      await page.render({
+        canvasContext: context,
+        viewport
+      }).promise;
 
 
-  const blob =
-    new Blob(
+      /* ==============================
+         JPEG
+      ============================== */
+
+      const jpegBlob =
+        await new Promise(
+          (resolve, reject) => {
+
+            canvas.toBlob(
+              blob => {
+
+                if (blob) {
+                  resolve(blob);
+                } else {
+                  reject(
+                    new Error(
+                      "Failed to encode PDF page."
+                    )
+                  );
+                }
+
+              },
+              "image/jpeg",
+              quality
+            );
+
+          }
+        );
+
+
+      const jpegBytes =
+        new Uint8Array(
+          await jpegBlob.arrayBuffer()
+        );
+
+
+      /* ==============================
+         EMBED JPEG
+      ============================== */
+
+      const image =
+        await out.embedJpg(
+          jpegBytes
+        );
+
+
+      /* ==============================
+         NEW PDF PAGE
+      ============================== */
+
+      const newPage =
+        out.addPage([
+          image.width,
+          image.height
+        ]);
+
+
+      newPage.drawImage(
+        image,
+        {
+          x: 0,
+          y: 0,
+          width: image.width,
+          height: image.height
+        }
+      );
+
+
+      /* ==============================
+         FREE CANVAS MEMORY
+      ============================== */
+
+      canvas.width = 1;
+      canvas.height = 1;
+    }
+
+
+    const bytes =
+      await out.save({
+        useObjectStreams: true,
+        addDefaultPage: false
+      });
+
+
+    return new Blob(
       [bytes],
       {
         type: "application/pdf"
       }
     );
+  }
 
 
-  /* =====================================================
-     SIZE CALCULATION
-  ===================================================== */
+  /* ================================
+     TRY COMPRESSION LEVELS
+  ================================= */
 
-  const originalSize =
-    original.size;
+  let bestBlob = null;
+  let bestDifference = Infinity;
+
+
+  for (
+    let i = 0;
+    i < orderedLevels.length;
+    i++
+  ) {
+
+    const level =
+      orderedLevels[i];
+
+    setStatus(
+      `Testing compression level ${i + 1} of ${orderedLevels.length}...`
+    );
+
+
+    const blob =
+      await createCompressedPDF(
+        level
+      );
+
+
+    const difference =
+      Math.abs(
+        blob.size - targetSize
+      );
+
+
+    /*
+     * Prefer files that are not larger
+     * than the requested target.
+     */
+
+    if (
+      blob.size <= targetSize &&
+      difference < bestDifference
+    ) {
+
+      bestBlob = blob;
+      bestDifference = difference;
+    }
+
+
+    /*
+     * If nothing has reached target yet,
+     * keep the closest result.
+     */
+
+    if (
+      !bestBlob &&
+      difference < bestDifference
+    ) {
+
+      bestBlob = blob;
+      bestDifference = difference;
+    }
+  }
+
+
+  if (!bestBlob) {
+    throw new Error(
+      "Unable to create compressed PDF."
+    );
+  }
+
+
+  /* ================================
+     FINAL SIZE
+  ================================= */
 
   const compressedSize =
-    blob.size;
+    bestBlob.size;
+
 
   const saved =
     originalSize > 0
@@ -279,35 +431,45 @@ async function compressPDF() {
       : 0;
 
 
-  /* =====================================================
+  /* ================================
      UPDATE ORIGINAL SIZE
-  ===================================================== */
+  ================================= */
 
   const originalSizeEl =
-    document.getElementById("originalSize");
+    document.getElementById(
+      "originalSize"
+    );
 
   if (originalSizeEl) {
+
     originalSizeEl.textContent =
-      Siznora.fmtSize(originalSize);
+      Siznora.fmtSize(
+        originalSize
+      );
   }
 
 
-  /* =====================================================
+  /* ================================
      UPDATE COMPRESSED SIZE
-  ===================================================== */
+  ================================= */
 
   const targetSizeEl =
-    document.getElementById("targetSize");
+    document.getElementById(
+      "targetSize"
+    );
 
   if (targetSizeEl) {
+
     targetSizeEl.textContent =
-      Siznora.fmtSize(compressedSize);
+      Siznora.fmtSize(
+        compressedSize
+      );
   }
 
 
-  /* =====================================================
-     UPDATE COMPRESSION RESULT
-  ===================================================== */
+  /* ================================
+     UPDATE RESULT
+  ================================= */
 
   const qualityEl =
     document.getElementById(
@@ -321,39 +483,41 @@ async function compressPDF() {
   }
 
 
-  /* =====================================================
+  /* ================================
      STATUS
-  ===================================================== */
+  ================================= */
 
-  if (saved > 0) {
-
-    setStatus(
-      `Done. ${Math.round(saved)}% smaller`
-    );
-
-  } else {
-
-    setStatus(
-      "Compression complete."
-    );
-  }
+  setStatus(
+    saved > 0
+      ? `Done. ${Math.round(saved)}% smaller`
+      : "Compression complete."
+  );
 
 
-  /* =====================================================
+  /* ================================
      DOWNLOAD
-  ===================================================== */
+  ================================= */
 
   links([
     {
-      url: URL.createObjectURL(blob),
-      name: `compressed-${original.name}`,
-      label: "Download Compressed PDF"
+      url:
+        URL.createObjectURL(
+          bestBlob
+        ),
+
+      name:
+        `compressed-${original.name}`,
+
+      label:
+        "Download Compressed PDF"
     }
   ]);
 
 
-  return blob;
-}
+  return bestBlob;
+  }
+
+ 
 const compressionTarget =
   document.getElementById("compressionTarget");
 
