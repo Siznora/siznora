@@ -26,10 +26,7 @@ async function compressPDF() {
 
   setStatus("Loading PDF compressor...");
 
-  /* ================================
-     LOAD PDF.JS
-  ================================= */
-
+  // Load PDF.js
   const pdfjs = await import(
     "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.5.136/build/pdf.min.mjs"
   );
@@ -37,387 +34,152 @@ async function compressPDF() {
   pdfjs.GlobalWorkerOptions.workerSrc =
     "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.5.136/build/pdf.worker.min.mjs";
 
-
-  /* ================================
-     READ PDF
-  ================================= */
-
   const pdf = await pdfjs.getDocument({
-    data: new Uint8Array(
-      await original.arrayBuffer()
-    )
+    data: new Uint8Array(await original.arrayBuffer())
   }).promise;
 
   const pageCount = pdf.numPages;
 
+  // Slider value
+  const slider = document.getElementById("compressionTarget");
+  const compressionPercent = Number(slider?.value || 50);
 
-  /* ================================
-     GET SLIDER VALUE
-     
-     10 = light
-     50 = medium
-     90 = strong
-  ================================= */
+  /*
+   * IMPORTANT:
+   * Slider percentage = compression strength.
+   *
+   * Lower %  = lighter compression
+   * Higher % = stronger compression
+   */
 
-  const slider =
-    document.getElementById("compressionTarget");
-
-  const compressionPercent =
-    Number(slider?.value || 50);
-
-
-  /* ================================
-     TARGET SIZE
-  ================================= */
-
-  const originalSize = original.size;
-
-  const targetSize =
-    originalSize *
-    (1 - compressionPercent / 100);
-
-
-  /* ================================
-     COMPRESSION LEVELS
-     
-     We try several qualities/resolutions
-     and select the result closest to
-     the requested target.
-  ================================= */
-
-  const levels = [
-
-    {
-      quality: 0.92,
-      scale: 1.55
-    },
-
-    {
-      quality: 0.85,
-      scale: 1.45
-    },
-
-    {
-      quality: 0.78,
-      scale: 1.35
-    },
-
-    {
-      quality: 0.70,
-      scale: 1.25
-    },
-
-    {
-      quality: 0.62,
-      scale: 1.15
-    },
-
-    {
-      quality: 0.55,
-      scale: 1.05
-    },
-
-    {
-      quality: 0.48,
-      scale: 0.95
-    },
-
-    {
-      quality: 0.40,
-      scale: 0.88
-    },
-
-    {
-      quality: 0.32,
-      scale: 0.80
-    },
-
-    {
-      quality: 0.24,
-      scale: 0.72
-    },
-
-    {
-      quality: 0.16,
-      scale: 0.65
-    }
-
-  ];
-
-
-  /* ================================
-     CHOOSE LEVELS ACCORDING TO SLIDER
-  ================================= */
-
-  let startIndex =
-    Math.floor(
-      (compressionPercent / 100) *
-      levels.length
-    );
-
-  startIndex =
+  const quality =
     Math.max(
-      0,
-      Math.min(
-        levels.length - 1,
-        startIndex
-      )
+      0.35,
+      0.92 - (compressionPercent / 100) * 0.55
     );
 
-
-  const orderedLevels = [
-    ...levels.slice(startIndex),
-    ...levels.slice(0, startIndex)
-  ];
-
-
-  /* ================================
-     CREATE CANDIDATE PDF
-  ================================= */
-
-  async function createCompressedPDF(level) {
-
-    const {
-      quality,
-      scale
-    } = level;
-
-    const { PDFDocument } =
-      await lib();
-
-    const out =
-      await PDFDocument.create();
-
-
-    for (
-      let pageNumber = 1;
-      pageNumber <= pageCount;
-      pageNumber++
-    ) {
-
-      setStatus(
-        `Compressing page ${pageNumber} of ${pageCount}...`
-      );
-
-      const page =
-        await pdf.getPage(pageNumber);
-
-      const viewport =
-        page.getViewport({
-          scale
-        });
-
-
-      /* ==============================
-         CANVAS
-      ============================== */
-
-      const canvas =
-        document.createElement("canvas");
-
-      const context =
-        canvas.getContext(
-          "2d",
-          {
-            alpha: false
-          }
-        );
-
-      canvas.width =
-        Math.max(
-          1,
-          Math.ceil(viewport.width)
-        );
-
-      canvas.height =
-        Math.max(
-          1,
-          Math.ceil(viewport.height)
-        );
-
-
-      /* ==============================
-         RENDER PAGE
-      ============================== */
-
-      await page.render({
-        canvasContext: context,
-        viewport
-      }).promise;
-
-
-      /* ==============================
-         JPEG
-      ============================== */
-
-      const jpegBlob =
-        await new Promise(
-          (resolve, reject) => {
-
-            canvas.toBlob(
-              blob => {
-
-                if (blob) {
-                  resolve(blob);
-                } else {
-                  reject(
-                    new Error(
-                      "Failed to encode PDF page."
-                    )
-                  );
-                }
-
-              },
-              "image/jpeg",
-              quality
-            );
-
-          }
-        );
-
-
-      const jpegBytes =
-        new Uint8Array(
-          await jpegBlob.arrayBuffer()
-        );
-
-
-      /* ==============================
-         EMBED JPEG
-      ============================== */
-
-      const image =
-        await out.embedJpg(
-          jpegBytes
-        );
-
-
-      /* ==============================
-         NEW PDF PAGE
-      ============================== */
-
-      const newPage =
-        out.addPage([
-          image.width,
-          image.height
-        ]);
-
-
-      newPage.drawImage(
-        image,
-        {
-          x: 0,
-          y: 0,
-          width: image.width,
-          height: image.height
-        }
-      );
-
-
-      /* ==============================
-         FREE CANVAS MEMORY
-      ============================== */
-
-      canvas.width = 1;
-      canvas.height = 1;
-    }
-
-
-    const bytes =
-      await out.save({
-        useObjectStreams: true,
-        addDefaultPage: false
-      });
-
-
-    return new Blob(
-      [bytes],
-      {
-        type: "application/pdf"
-      }
+  const scale =
+    Math.max(
+      0.75,
+      1.55 - (compressionPercent / 100) * 0.75
     );
-  }
 
+  setStatus(`Compressing ${pageCount} page${pageCount > 1 ? "s" : ""}...`);
 
-  /* ================================
-     TRY COMPRESSION LEVELS
-  ================================= */
+  const { PDFDocument } = await lib();
 
-  let bestBlob = null;
-  let bestDifference = Infinity;
+  const out = await PDFDocument.create();
 
-
-  for (
-    let i = 0;
-    i < orderedLevels.length;
-    i++
-  ) {
-
-    const level =
-      orderedLevels[i];
+  for (let i = 1; i <= pageCount; i++) {
 
     setStatus(
-      `Testing compression level ${i + 1} of ${orderedLevels.length}...`
+      `Compressing page ${i} of ${pageCount}...`
     );
 
+    const page = await pdf.getPage(i);
 
-    const blob =
-      await createCompressedPDF(
-        level
-      );
+    const viewport = page.getViewport({
+      scale: scale
+    });
 
+    const canvas = document.createElement("canvas");
 
-    const difference =
-      Math.abs(
-        blob.size - targetSize
-      );
+    const context = canvas.getContext("2d", {
+      alpha: false
+    });
 
-
-    /*
-     * Prefer files that are not larger
-     * than the requested target.
-     */
-
-    if (
-      blob.size <= targetSize &&
-      difference < bestDifference
-    ) {
-
-      bestBlob = blob;
-      bestDifference = difference;
-    }
-
-
-    /*
-     * If nothing has reached target yet,
-     * keep the closest result.
-     */
-
-    if (
-      !bestBlob &&
-      difference < bestDifference
-    ) {
-
-      bestBlob = blob;
-      bestDifference = difference;
-    }
-  }
-
-
-  if (!bestBlob) {
-    throw new Error(
-      "Unable to create compressed PDF."
+    canvas.width = Math.max(
+      1,
+      Math.ceil(viewport.width)
     );
+
+    canvas.height = Math.max(
+      1,
+      Math.ceil(viewport.height)
+    );
+
+    /*
+     * Render original PDF page
+     */
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+
+    /*
+     * Convert page to JPEG
+     */
+    const jpegBlob = await new Promise(
+      (resolve, reject) => {
+
+        canvas.toBlob(
+          blob => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(
+                new Error(
+                  "Failed to compress PDF page."
+                )
+              );
+            }
+          },
+          "image/jpeg",
+          quality
+        );
+
+      }
+    );
+
+    const jpegBytes = new Uint8Array(
+      await jpegBlob.arrayBuffer()
+    );
+
+    /*
+     * Put compressed JPEG into new PDF
+     */
+    const image = await out.embedJpg(
+      jpegBytes
+    );
+
+    const newPage = out.addPage([
+      image.width,
+      image.height
+    ]);
+
+    newPage.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: image.width,
+      height: image.height
+    });
+
+    /*
+     * Release canvas memory
+     */
+    canvas.width = 1;
+    canvas.height = 1;
   }
 
+  setStatus("Creating compressed PDF...");
 
-  /* ================================
-     FINAL SIZE
-  ================================= */
+  const bytes = await out.save({
+    useObjectStreams: true,
+    addDefaultPage: false
+  });
 
-  const compressedSize =
-    bestBlob.size;
+  const blob = new Blob(
+    [bytes],
+    {
+      type: "application/pdf"
+    }
+  );
 
+  /*
+   * Calculate actual reduction
+   */
+  const originalSize = original.size;
+  const compressedSize = blob.size;
 
   const saved =
     originalSize > 0
@@ -430,62 +192,38 @@ async function compressPDF() {
         )
       : 0;
 
-
-  /* ================================
-     UPDATE ORIGINAL SIZE
-  ================================= */
-
+  /*
+   * Original size
+   */
   const originalSizeEl =
-    document.getElementById(
-      "originalSize"
-    );
+    document.getElementById("originalSize");
 
   if (originalSizeEl) {
-
     originalSizeEl.textContent =
-      Siznora.fmtSize(
-        originalSize
-      );
+      Siznora.fmtSize(originalSize);
   }
 
-
-  /* ================================
-     UPDATE COMPRESSED SIZE
-  ================================= */
-
+  /*
+   * Compressed size
+   */
   const targetSizeEl =
-    document.getElementById(
-      "targetSize"
-    );
+    document.getElementById("targetSize");
 
   if (targetSizeEl) {
-
     targetSizeEl.textContent =
-      Siznora.fmtSize(
-        compressedSize
-      );
+      Siznora.fmtSize(compressedSize);
   }
 
-
-  /* ================================
-     UPDATE RESULT
-  ================================= */
-
+  /*
+   * Actual savings
+   */
   const qualityEl =
-    document.getElementById(
-      "compressionQuality"
-    );
+    document.getElementById("compressionQuality");
 
   if (qualityEl) {
-
     qualityEl.innerHTML =
       `<strong>${Math.round(saved)}% smaller</strong>`;
   }
-
-
-  /* ================================
-     STATUS
-  ================================= */
 
   setStatus(
     saved > 0
@@ -493,29 +231,21 @@ async function compressPDF() {
       : "Compression complete."
   );
 
-
-  /* ================================
-     DOWNLOAD
-  ================================= */
-
+  /*
+   * Download
+   */
   links([
     {
-      url:
-        URL.createObjectURL(
-          bestBlob
-        ),
-
-      name:
-        `compressed-${original.name}`,
-
-      label:
-        "Download Compressed PDF"
+      url: URL.createObjectURL(blob),
+      name: `compressed-${original.name}`,
+      label: "Download Compressed PDF"
     }
   ]);
 
+  return blob;
+}
 
-  return bestBlob;
-  }
+      
 
  
 const compressionTarget =
