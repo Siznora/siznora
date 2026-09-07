@@ -3,77 +3,92 @@
 
   <url>
     <loc>https://siznora.github.io/siznora/</loc>
-    <priority>1.0</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>1.00</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/compress-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/merge-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/split-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/organize-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/jpg-to-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/pdf-to-jpg.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/protect-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/watermark-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/rotate-pdf.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/compress-image.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/resize-image.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
     <loc>https://siznora.github.io/siznora/convert-image.html</loc>
-    <priority>0.8</priority>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.80</priority>
   </url>
 
   <url>
-  <loc>https://siznora.github.io/siznora/privacy.html</loc>
-  <priority>0.5</priority>
-</url>
+    <loc>https://siznora.github.io/siznora/privacy.html</loc>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.50</priority>
+  </url>
 
-<url>
-  <loc>https://siznora.github.io/siznora/terms.html</loc>
-  <priority>0.5</priority>
-</url>
-  
+  <url>
+    <loc>https://siznora.github.io/siznora/terms.html</loc>
+    <lastmod>2026-09-07</lastmod>
+    <priority>0.50</priority>
+  </url>
+
 </urlset>
