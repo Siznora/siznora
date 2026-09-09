@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://siznora.github.io/siznora/sitemap.xml
