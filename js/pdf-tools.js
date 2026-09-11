@@ -333,7 +333,223 @@ if (compressionTarget) {
 
   setStatus("AES-256 encryption complete.");
  }
- async function jpgpdf(){const {PDFDocument}=await lib();const out=await PDFDocument.create();const size=document.getElementById("pageSize").value;const orient=document.getElementById("orientation").value;const margin=+document.getElementById("margin").value*2.83465;for(const f of files){const img=await createImageBitmap(f);let w=img.width*72/96,h=img.height*72/96;let pw=w+margin*2,ph=h+margin*2;if(size!=="original"){pw=size==="a4"?595.28:612;ph=size==="a4"?841.89:792;if(orient==="landscape")[pw,ph]=[ph,pw]}const p=out.addPage([pw,ph]);const c=document.createElement("canvas");c.width=img.width;c.height=img.height;c.getContext("2d").drawImage(img,0,0);const data=c.toDataURL("image/jpeg",.92);const bytes=await (await fetch(data)).arrayBuffer();const emb=f.type==="image/png"?await out.embedPng(bytes):await out.embedJpg(bytes);const maxw=pw-margin*2,maxh=ph-margin*2,scale=Math.min(maxw/emb.width,maxh/emb.height);p.drawImage(emb,{x:(pw-emb.width*scale)/2,y:(ph-emb.height*scale)/2,width:emb.width*scale,height:emb.height*scale})}const blob=new Blob([await out.save()],{type:"application/pdf"});links([{url:URL.createObjectURL(blob),name:"Siznora_Images.pdf",label:"Download PDF"}])}
+ async function jpgpdf(){
+
+  const { PDFDocument } = await lib();
+  const out = await PDFDocument.create();
+
+  const size =
+    document.getElementById("pageSize")?.value || "a4";
+
+  const orient =
+    document.getElementById("orientation")?.value || "portrait";
+
+  const margin =
+    (Number(document.getElementById("margin")?.value) || 0) * 2.83465;
+
+  if (!files.length) {
+    throw new Error("Please select at least one image.");
+  }
+
+  setStatus("Creating PDF...");
+
+  for (let i = 0; i < files.length; i++) {
+
+    const f = files[i];
+
+    if (
+      f.type !== "image/jpeg" &&
+      f.type !== "image/png" &&
+      f.type !== "image/webp"
+    ) {
+      continue;
+    }
+
+    setStatus(`Processing image ${i + 1} of ${files.length}...`);
+
+    const img = await createImageBitmap(f);
+
+    let w = img.width * 72 / 96;
+    let h = img.height * 72 / 96;
+
+    let pw;
+    let ph;
+
+    /*
+     * Page size
+     */
+
+    if (size === "a4") {
+
+      pw = 595.28;
+      ph = 841.89;
+
+    } else if (size === "letter") {
+
+      pw = 612;
+      ph = 792;
+
+    } else {
+
+      pw = w + margin * 2;
+      ph = h + margin * 2;
+
+    }
+
+    /*
+     * Orientation
+     */
+
+    if (size !== "original" && orient === "landscape") {
+      [pw, ph] = [ph, pw];
+    }
+
+    /*
+     * Create PDF page
+     */
+
+    const page = out.addPage([pw, ph]);
+
+    /*
+     * Convert WebP to JPEG.
+     * Keep JPEG as JPEG.
+     * Keep PNG as PNG.
+     */
+
+    let embeddedImage;
+
+    if (f.type === "image/png") {
+
+      const arrayBuffer =
+        await f.arrayBuffer();
+
+      embeddedImage =
+        await out.embedPng(arrayBuffer);
+
+    } else {
+
+      let jpegBytes;
+
+      if (f.type === "image/webp") {
+
+        const canvas =
+          document.createElement("canvas");
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        const ctx =
+          canvas.getContext("2d");
+
+        ctx.drawImage(img, 0, 0);
+
+        const dataURL =
+          canvas.toDataURL("image/jpeg", 0.92);
+
+        jpegBytes =
+          await (
+            await fetch(dataURL)
+          ).arrayBuffer();
+
+      } else {
+
+        jpegBytes =
+          await f.arrayBuffer();
+
+      }
+
+      embeddedImage =
+        await out.embedJpg(jpegBytes);
+
+    }
+
+    /*
+     * Available drawing area
+     */
+
+    const maxW =
+      pw - margin * 2;
+
+    const maxH =
+      ph - margin * 2;
+
+    /*
+     * Keep image aspect ratio
+     */
+
+    const scale =
+      Math.min(
+        maxW / embeddedImage.width,
+        maxH / embeddedImage.height
+      );
+
+    const drawW =
+      embeddedImage.width * scale;
+
+    const drawH =
+      embeddedImage.height * scale;
+
+    /*
+     * Center image on page
+     */
+
+    const x =
+      (pw - drawW) / 2;
+
+    const y =
+      (ph - drawH) / 2;
+
+    page.drawImage(
+      embeddedImage,
+      {
+        x,
+        y,
+        width: drawW,
+        height: drawH
+      }
+    );
+
+    /*
+     * Free browser bitmap memory
+     */
+
+    img.close();
+  }
+
+  /*
+   * Generate final PDF
+   */
+
+  setStatus("Generating PDF...");
+
+  const bytes =
+    await out.save({
+      useObjectStreams: true,
+      addDefaultPage: false
+    });
+
+  const blob =
+    new Blob(
+      [bytes],
+      { type: "application/pdf" }
+    );
+
+  /*
+   * Download/result
+   */
+
+  links([
+    {
+      url: URL.createObjectURL(blob),
+      name: "Siznora_Images.pdf",
+      label: "Download PDF"
+    }
+  ]);
+
+  setStatus("PDF created successfully.");
+
+  return blob;
+ }
  async function pdfjpg(){setStatus("Loading PDF renderer...");const pdfjs=await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.5.136/build/pdf.min.mjs");pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.5.136/build/pdf.worker.min.mjs";const pdf=await pdfjs.getDocument({data:new Uint8Array(await files[0].arrayBuffer())}).promise;const q=document.getElementById("pages").value.trim();let inds=q?parseRanges(q,pdf.numPages):Array.from({length:pdf.numPages},(_,i)=>i);const urls=[];const zip=(await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm")).default();for(const i of inds){const p=await pdf.getPage(i+1);const vp=p.getViewport({scale:1.7});const c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;await p.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",+document.getElementById("quality").value));const name=`Siznora_Page_${i+1}.jpg`;zip.file(name,blob);if(inds.length<=10)urls.push({url:URL.createObjectURL(blob),name,label:`Download Page ${i+1}`})}const zb=new Blob([await zip.generateAsync({type:"uint8array"})],{type:"application/zip"});urls.push({url:URL.createObjectURL(zb),name:"Siznora_PDF_Pages.zip",label:"Download All as ZIP"});links(urls)}
  const actions={"pdf-compress":compressPDF,"pdf-merge":merge,"pdf-split":split,"pdf-organize":organize,"jpg-pdf":jpgpdf,"pdf-jpg":pdfjpg,"pdf-protect":protect,"pdf-watermark":watermark,"pdf-rotate":rotate};
  if(btn)btn.onclick=async()=>{btn.disabled=true;try{setStatus("Processing...");await actions[tool]();setStatus("Done.");}catch(e){setStatus(e.message?.includes("encryption")?e.message:"Unable to process this file. Please check that the file is valid and try again.");}finally{btn.disabled=false}};
