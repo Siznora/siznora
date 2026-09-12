@@ -7,8 +7,55 @@
  const setStatus=x=>status.textContent=x;
  const esc=x=>String(x).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
  const renderFiles=()=>{const box=document.getElementById("fileList");if(!box)return;box.innerHTML=files.map((f,i)=>`<div class="file-item"><span>PDF</span><div class="grow"><strong>${esc(f.name)}</strong><small>${Siznora.fmtSize(f.size)}</small></div><button type="button" data-remove="${i}">Remove</button></div>`).join("");box.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{files.splice(+b.dataset.remove,1);renderFiles();btn.disabled=!files.length})};
- if(input)input.addEventListener("change",()=>{if(tool==="pdf-merge")files.push(...[...input.files].filter(f=>f.type==="application/pdf"&&f.size));else{files.length=0;const f=input.files[0];if(f&&f.type==="application/pdf"&&f.size)files.push(f)}renderFiles();btn.disabled=!files.length});
- const lib=async()=>await import("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm");
+  if(input)input.addEventListener("change",()=>{
+
+  if(tool==="pdf-merge"){
+
+    files.push(
+      ...[...input.files].filter(
+        f => f.type==="application/pdf" && f.size
+      )
+    );
+
+  }else if(tool==="jpg-pdf"){
+
+    files.length=0;
+
+    files.push(
+      ...[...input.files].filter(
+        f =>
+          (
+            f.type==="image/jpeg" ||
+            f.type==="image/png" ||
+            f.type==="image/webp" ||
+            /\.(jpe?g|png|webp)$/i.test(f.name)
+          ) &&
+          f.size
+      )
+    );
+
+  }else{
+
+    files.length=0;
+
+    const f=input.files[0];
+
+    if(
+      f &&
+      f.type==="application/pdf" &&
+      f.size
+    ){
+      files.push(f);
+    }
+
+  }
+
+  renderFiles();
+
+  btn.disabled=!files.length;
+
+});
+  const lib=async()=>await import("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm");
  const loadPDF=async bytes=>{const {PDFDocument}=await lib();return PDFDocument.load(bytes)};
  const parseRanges=(s,max)=>{const out=new Set();for(const p of s.split(",").map(x=>x.trim()).filter(Boolean)){const m=p.match(/^(\d+)\s*-\s*(\d+)$/);if(m){let a=+m[1],b=+m[2];if(a>b)[a,b]=[b,a];for(let i=a;i<=b;i++)if(i>=1&&i<=max)out.add(i-1)}else if(/^\d+$/.test(p)){const n=+p;if(n>=1&&n<=max)out.add(n-1)}}return[...out].sort((a,b)=>a-b)};
  const links=(items)=>{result.hidden=false;result.innerHTML="<h3>✓ Complete</h3>"+items.map(x=>`<a class="download" href="${x.url}" download="${esc(x.name)}">${esc(x.label||"Download")}</a>`).join("")};
